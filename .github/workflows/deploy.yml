@@ -1,0 +1,26 @@
+name: Sync LFS Assets to S3
+
+on:
+  push:
+    branches: [ main ] # Triggers whenever you push code to the main branch
+
+jobs:
+  sync-assets:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code with LFS
+      uses: actions/checkout@v4
+      with:
+        lfs: true # This forces GitHub Actions to pull the actual large file, not just the text pointer
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-north-1a # Change this to your exact EC2/S3 region code (e.g., us-west-2, ap-south-1)
+
+    - name: Upload Large File to S3
+      run: |
+        # Replace the paths below with your actual file path and your exact S3 bucket name
+        aws s3 cp model_artifacts/model.safetensors s3://twitter-sentiment-lfs-assets/model.safetensors
