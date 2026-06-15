@@ -18,7 +18,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: eu-north-1a # Change this to your exact EC2/S3 region code (e.g., us-west-2, ap-south-1)
+        aws-region: eu-north-1 # Change this to your exact EC2/S3 region code (e.g., us-west-2, ap-south-1)
 
     - name: Upload Large File to S3
       run: |
