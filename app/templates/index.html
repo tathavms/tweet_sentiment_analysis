@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tweet Sentiment Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Tweet Sentiment Analyzer</h1>
+            <p class="subtitle">
+                Enter a tweet and check whether the sentiment is positive or negative.
+            </p>
+
+            <form action="/predict" method="post">
+                <label for="tweet">Tweet</label>
+                <textarea
+                    id="tweet"
+                    name="tweet"
+                    rows="6"
+                    placeholder="Type or paste a tweet here..."
+                    required
+                >{% if result %}{{ result.input_text }}{% endif %}</textarea>
+
+                <button type="submit">Check Sentiment</button>
+            </form>
+
+            {% if error %}
+                <div class="message error">
+                    {{ error }}
+                </div>
+            {% endif %}
+
+            {% if result %}
+                <div class="result">
+                    <h2>Prediction Result</h2>
+                    <p><strong>Sentiment:</strong> {{ result.label }}</p>
+                    <p><strong>Probability:</strong> {{ result.confidence }}%</p>
+                    <p><strong>Cleaned Text:</strong> {{ result.cleaned_text }}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
