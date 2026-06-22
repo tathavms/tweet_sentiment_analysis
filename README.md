@@ -63,29 +63,29 @@ This architecture decouples source application code from heavy binary deep-learn
 ```
 ```mermaid
 flowchart TD
-    subgraph G[GitHub]
+    subgraph G["GitHub"]
         direction TB
-        GH[GitHub Main Repository<br/>(Source Code + Static Assets + Git LFS Pointer)]
-        CP[Code Push<br/>(All Files)]
-        MW[Model Weight Changes Only]
+        GH["GitHub Main Repository<br/>Source Code + Static Assets + Git LFS Pointer"]
+        CP["Code Push<br/>All Files"]
+        MW["Model Weight Changes Only"]
     end
 
-    subgraph D[Deployment]
+    subgraph D["Deployment"]
         direction TB
-        GP[Manual Git Pull<br/>on EC2 Instance]
-        GHA[GitHub Actions Sync<br/>(lfs: true -> AWS S3)]
+        GP["Manual Git Pull<br/>on EC2 Instance"]
+        GHA["GitHub Actions Sync<br/>Git LFS to Amazon S3"]
     end
 
-    subgraph A[AWS]
+    subgraph A["AWS"]
         direction TB
-        S3[Amazon S3 Bucket<br/>(twitter-sentiment-lfs-assets)]
-        EC2[Amazon EC2 t3.micro<br/>(Amazon Linux 2023)<br/>Venv: Python 3.12<br/>RAM: 1 GB Physical + 2 GB Swap<br/>Port 8000: Uvicorn Daemon]
-        EIP[Elastic IP address<br/>Public live page access<br/>http://13.48.162.241:8000]
+        S3["Amazon S3 Bucket<br/>twitter-sentiment-lfs-assets"]
+        EC2["Amazon EC2 t3.micro<br/>Amazon Linux 2023<br/>Python 3.12 Virtual Environment<br/>1 GB RAM + 2 GB Swap<br/>Uvicorn on Port 8000"]
+        EIP["Elastic IP address<br/>Public live page access<br/>http://13.48.162.241:8000"]
     end
 
     GH --> CP --> GP --> EC2
     GH --> MW --> GHA --> S3
-    S3 -->|Secure native AWS CLI pull<br/>(EC2-S3-ReadOnly-Role)| EC2
+    S3 -->|"Secure AWS CLI pull<br/>via EC2 instance profile"| EC2
     EC2 --> EIP
 ```
 
