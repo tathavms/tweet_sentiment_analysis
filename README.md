@@ -51,27 +51,25 @@ High-quality annotations were generated from a raw dataset (Tweets_unlabelled.cs
 │  (2,000 Records)  │      │ Automated Lexicon│      │  Audit/Correction  │      │(manually_labelled.csv)│
 └───────────────────┘      └──────────────────┘      └────────────────────┘      └───────────────────────┘
 
-Preprocessing Engine (preprocess.py)
-
+### 3.1 Preprocessing Engine (preprocess.py)
+<div style="background-color: #524f4f>
 To ensure mathematical prediction consistency, incoming evaluation requests are normalized using the exact regular expression pipeline applied during model training:
-    <p>
-    URL Neutralization: Removes web links (http\S+|www\S+) to eliminate non-semantic text noise.
 
-    Handle Isolation: Swaps user mentions (@username) with a generic token (@user) to generalize social interaction structures.
+* **URL Neutralization:** Removes web links (http\S+|www\S+) to eliminate non-semantic text noise.
 
-    Hashtag Preserving Cleansing: Strips the hash symbol (#) while maintaining the underlying phrase structure to extract trending keyword context.
+* **Handle Isolation:** Swaps user mentions (@username) with a generic token (@user) to generalize social interaction structures.
 
-    Vocabulary Standardization: Forces lowercase casting and collapses multi-character spaces to align with the core vocabulary file.
-    </p>
+* **Hashtag Preserving Cleansing:** Strips the hash symbol (#) while maintaining the underlying phrase structure to extract trending keyword context.
+
+* **Vocabulary Standardization:** Forces lowercase casting and collapses multi-character spaces to align with the core vocabulary file.
+</div>
 
 ## 4. Model Architecture & Fine-Tuning Performance
 
 The application leverages a fine-tuned DistilBERT base model (distilbert-base-uncased). This architecture provides a robust context-aware vocabulary system while utilizing a streamlined transformer head that runs efficiently on CPU servers.
 
 ### 4.1 Dynamic Memory Tokenization: 
-<p>
-    Instead of loading tokenized tensors into memory all at once, text arrays are managed through a custom PyTorch object (SentimentDataset). This architecture feeds tokenized batches on-demand during pipeline iterations
-</p>
+Instead of loading tokenized tensors into memory all at once, text arrays are managed through a custom PyTorch object (SentimentDataset). This architecture feeds tokenized batches on-demand during pipeline iterations
 
 ### 4.2 Fine-Tuning Hyperparameters:
     Optimizer: AdamW (β1​=0.9, β2​=0.999, ϵ=10−8)
@@ -81,14 +79,13 @@ The application leverages a fine-tuned DistilBERT base model (distilbert-base-un
     Regularization Loop: Early Stopping (Patience = 1, monitored against Validation Loss)
 
 ### 4.3 Training Diagnostics & Reversion Log:
-<p>
-    The model was fine-tuned over 10 epochs.
-    Early stopping triggered at Epoch 4 when validation loss began to climb, and the pipeline \n automatically reverted to the optimal parameters from Epoch 2.
-        Epoch 1: Train Loss: 0.5765 | Val Loss: 0.3362 | Val Accuracy: 87.02%
-        Epoch 2: Train Loss: 0.3060 | Val Loss: 0.2750 | Val Accuracy: 90.84% (Optimal Model Recovered)
-        Epoch 3: Train Loss: 0.1392 | Val Loss: 0.3335 | Val Accuracy: 88.55%
-        Epoch 4: Train Loss: 0.0622 | Val Loss: 0.3751 | Val Accuracy: 88.80% (Early Stopping Intervened)
-</p>
+The model was fine-tuned over 10 epochs.
+Early stopping triggered at Epoch 4 when validation loss began to climb, and the pipeline automatically reverted to the optimal parameters from Epoch 2.
+
+Epoch 1: Train Loss: 0.5765 | Val Loss: 0.3362 | Val Accuracy: 87.02%
+Epoch 2: Train Loss: 0.3060 | Val Loss: 0.2750 | Val Accuracy: 90.84% (Optimal Model Recovered)
+Epoch 3: Train Loss: 0.1392 | Val Loss: 0.3335 | Val Accuracy: 88.55%
+Epoch 4: Train Loss: 0.0622 | Val Loss: 0.3751 | Val Accuracy: 88.80% (Early Stopping Intervened)
 
 ### 4.4 Final Evaluation Performance Matrix
 The model achieved an overall accuracy of 90.84% on a 20% holdout validation slice, displaying well-balanced classification characteristics across both target groups:
