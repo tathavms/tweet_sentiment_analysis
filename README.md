@@ -69,9 +69,9 @@ To ensure mathematical prediction consistency, incoming evaluation requests are 
 The application leverages a fine-tuned DistilBERT base model (distilbert-base-uncased). This architecture provides a robust context-aware vocabulary system while utilizing a streamlined transformer head that runs efficiently on CPU servers.
 
 ### 4.1 Dynamic Memory Tokenization: 
-    <p>
+<p>
     Instead of loading tokenized tensors into memory all at once, text arrays are managed through a custom PyTorch object (SentimentDataset). This architecture feeds tokenized batches on-demand during pipeline iterations
-    </p>
+</p>
 
 ### 4.2 Fine-Tuning Hyperparameters:
     Optimizer: AdamW (β1​=0.9, β2​=0.999, ϵ=10−8)
@@ -81,14 +81,14 @@ The application leverages a fine-tuned DistilBERT base model (distilbert-base-un
     Regularization Loop: Early Stopping (Patience = 1, monitored against Validation Loss)
 
 ### 4.3 Training Diagnostics & Reversion Log:
-    <p>
+<p>
     The model was fine-tuned over 10 epochs.
     Early stopping triggered at Epoch 4 when validation loss began to climb, and the pipeline \n automatically reverted to the optimal parameters from Epoch 2.
         Epoch 1: Train Loss: 0.5765 | Val Loss: 0.3362 | Val Accuracy: 87.02%
         Epoch 2: Train Loss: 0.3060 | Val Loss: 0.2750 | Val Accuracy: 90.84% (Optimal Model Recovered)
         Epoch 3: Train Loss: 0.1392 | Val Loss: 0.3335 | Val Accuracy: 88.55%
         Epoch 4: Train Loss: 0.0622 | Val Loss: 0.3751 | Val Accuracy: 88.80% (Early Stopping Intervened)
-    </p>
+</p>
 
 ### 4.4 Final Evaluation Performance Matrix
 The model achieved an overall accuracy of 90.84% on a 20% holdout validation slice, displaying well-balanced classification characteristics across both target groups:
