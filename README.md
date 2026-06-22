@@ -2,6 +2,10 @@
 
 A production-grade, end-to-end Machine Learning web application that classifies text sentiment into Positive or Negative categories. The predictive engine utilizes a fine-tuned Hugging Face DistilBERT model implemented via PyTorch and served dynamically using a FastAPI backend architecture served through AWS.
 
+# Live Demo
+
+- **Public URL:** [http://13.48.162.241:8000](http://13.48.162.241:8000) 
+
 > **Author:** Tathagata Banerjee
 
 ---
@@ -19,22 +23,70 @@ This architecture decouples source application code from heavy binary deep-learn
 ```text
 ┌────────────────────────────────────────────────────────┐
 │                 GitHub Main Repository                 │
-│    (FastAPI Code + Static Assets + LFS Text Pointer)   │
+│     (Source Code + Static Assets + Git LFS Pointer)    │
 └───────────┬────────────────────────────────┬───────────┘
             │                                │
- [Standard Code Pushes]           [model.safetensors Changed Only]
+ [Code Push (All Files)]          [Model Weight Changes Only]
             │                                │
-            ▼ (Manual Git Pull)              ▼ (GitHub Actions Pipeline)
-┌────────────────────────┐      ┌──────────────────────────┐
-│   AWS EC2 t3.micro     │      │   AWS S3 Storage Hub     │
-│  (Amazon Linux 2023)   │      │ (twitter-sentiment-lfs)  │
-│                        │      └────────────┬─────────────┘
-│   Runs Uvicorn Host    │                   │
-│  on Port 8000 [Local]  │                   │ [Secure Native Pull]
-│           ▲            │                   │  Authorized via EC2
-│           └────────────┼───────────────────┘  IAM Instance Profile
-└────────────────────────┘
+            ▼                                ▼
+┌──────────────────────────┐      ┌──────────────────────────┐
+│     Manual Git Pull      │      │    GitHub Actions Sync   │
+│      on EC2 Instance     │      │   (lfs: true -> AWS S3)  │
+└─────────────┬────────────┘      └────────────┬─────────────┘
+              │                                │
+              │                                ▼
+              │                    ┌────────────────────────┐
+              │                    │    Amazon S3 Bucket    │
+              │                    │   (twitter-sentiment-  │
+              │                    │      lfs-assets)       │
+              │                    └───────────┬────────────┘
+              │                                │
+              │                                │ [Secure Native AWS CLI Pull]
+              │                                │ (EC2-S3-ReadOnly-Role)
+              ▼                                │ Authorized via EC2
+┌─────────────────────────────────┐            │ IAM Instance Profile
+│        AWS EC2 t3.micro         │◄───────────┘
+│      (Amazon Linux 2023)        │
+│ ─────────────────────────────── │
+│ [Venv] Python 3.12              │
+│ [RAM]  1GB Physical + 2GB Swap  │
+│ [Port] 8000 (Uvicorn Daemon)    │
+│        [Local Service]          │
+└───────────────┬─────────────────┘
+                │
+                │ [Public Browser Access]
+                ▼
+┌─────────────────────────────────┐
+│  AWS Elastic IP (Public UI)     │
+│      13.48.162.241:8000         │
+└─────────────────────────────────┘
 ```
+
+flowchart TD
+    subgraph G[GitHub]
+        direction TB
+        GH[GitHub Main Repository<br/>(Source Code + Static Assets + Git LFS Pointer)]
+        CP[Code Push<br/>(All Files)]
+        MW[Model Weight Changes Only]
+    end
+
+    subgraph D[Deployment]
+        direction TB
+        GP[Manual Git Pull<br/>on EC2 Instance]
+        GHA[GitHub Actions Sync<br/>(lfs: true -> AWS S3)]
+    end
+
+    subgraph A[AWS]
+        direction TB
+        S3[Amazon S3 Bucket<br/>(twitter-sentiment-lfs-assets)]
+        EC2[Amazon EC2 t3.micro<br/>(Amazon Linux 2023)<br/>Venv: Python 3.12<br/>RAM: 1 GB Physical + 2 GB Swap<br/>Port 8000: Uvicorn Daemon]
+        EIP[Elastic IP address<br/>Public live page access<br/>http://13.48.162.241:8000]
+    end
+
+    GH --> CP --> GP --> EC2
+    GH --> MW --> GHA --> S3
+    S3 -->|Secure native AWS CLI pull<br/>(EC2-S3-ReadOnly-Role)| EC2
+    EC2 --> EIP
 
 ### 2.1 Strategic Infrastructure Decisions
 
@@ -43,6 +95,46 @@ PyTorch-Native Weights (safetensors): Dropped traditional Python serialization (
 IAM-Driven Asset Delivery: The EC2 host instance pulls compiled weights (model.safetensors) dynamically via the AWS CLI. Access is controlled through an attached IAM Instance Profile (EC2-S3-ReadOnly-Role) containing explicit AmazonS3ReadOnlyAccess permissions, removing the need for hardcoded credentials on the server.
 
 Isolated Production Sockets: The backend service is restricted to localhost loops within its private shell layer, running under a Uvicorn daemon bound to standard default Port 8000.
+
+### 2.2 Key Architectural Decisions:
+* **Decoupled Model Artifacts:** Moved away from rigid, version-dependent serialization formats (`.pkl`). The app saves and loads native PyTorch tensor formats (`model.safetensors`), configurations, and structural tokenizers entirely separately at initialization.
+* **Hybrid Asset Sync Pipeline:** The standard repository tracks a heavy transformer model file (`>100MB`) via Git LFS. To eliminate the overhead of hosting a Git LFS agent on a resource-constrained production node, a targeted GitHub Actions pipeline intercepts changes to `.safetensors`, pulling the native asset and caching it inside an Amazon S3 bucket (`twitter-sentiment-lfs-assets`).
+* **Secure Cloud Extraction:** The AWS EC2 deployment node extracts the model binary directly from the cloud bucket utilizing native AWS CLI binaries, authorized via an explicit IAM Instance Profile Policy (`EC2-S3-ReadOnly-Role`), bypassing the need to store hardcoded static cloud access keys.
+
+---
+
+### 2.3 Repository Structure
+
+```text
+project/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml                  # Conditional S3 asset sync engine
+├── app/
+│   ├── app.py                          # Primary FastAPI router and template endpoints
+│   ├── predictor.py                    # Model loading, tokenization, and inference routines
+│   ├── preprocess.py                   # Custom RegEx clean & linguistic normalizer matching notebook
+│   ├── static/
+│   │   └── style.css                   # Frontend web form style file
+│   └── templates/
+│       └── index.html                  # Frontend web form user interface
+├── images/
+│   └── ...                             # Training graph images for README visuals
+├── model_artifacts/
+│   ├── config.json                     # Model structural architecture properties
+│   ├── model.safetensors               # Pinned PyTorch model state-dict weights
+│   ├── tokenizer_config.json           # Hugging Face tokenizer constraints
+│   ├── vocab.txt                       # WordPiece vocabulary indices mapping
+│   ├── special_tokens_map.json         # Out-of-vocabulary and token boundary definitions
+│   └── label_map.json                  # Numerical ID mappings to Positive/Negative
+├── notebooks/
+│   └── ...                             # Experimental trial-and-error notebooks during training 
+├── .gitattributes                      # Git LFS tracking rules
+├── .gitignore                          # Git ignore rules
+├── README.md                           # Project documentation
+├── Sentiment_Analysis_Deployed_code.ipynb  # Final training notebook
+└── requirements.txt                    # Constrained system dependency definition
+```
 
 ## 3. Data Pipeline & Semi-Supervised Engineering
 
