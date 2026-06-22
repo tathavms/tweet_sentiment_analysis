@@ -54,7 +54,7 @@ High-quality annotations were generated from a raw dataset (Tweets_unlabelled.cs
 Preprocessing Engine (preprocess.py)
 
 To ensure mathematical prediction consistency, incoming evaluation requests are normalized using the exact regular expression pipeline applied during model training:
-
+    <p>
     URL Neutralization: Removes web links (http\S+|www\S+) to eliminate non-semantic text noise.
 
     Handle Isolation: Swaps user mentions (@username) with a generic token (@user) to generalize social interaction structures.
@@ -62,13 +62,16 @@ To ensure mathematical prediction consistency, incoming evaluation requests are 
     Hashtag Preserving Cleansing: Strips the hash symbol (#) while maintaining the underlying phrase structure to extract trending keyword context.
 
     Vocabulary Standardization: Forces lowercase casting and collapses multi-character spaces to align with the core vocabulary file.
+    </p>
 
 ## 4. Model Architecture & Fine-Tuning Performance
 
 The application leverages a fine-tuned DistilBERT base model (distilbert-base-uncased). This architecture provides a robust context-aware vocabulary system while utilizing a streamlined transformer head that runs efficiently on CPU servers.
 
 ### 4.1 Dynamic Memory Tokenization: 
+    <p>
     Instead of loading tokenized tensors into memory all at once, text arrays are managed through a custom PyTorch object (SentimentDataset). This architecture feeds tokenized batches on-demand during pipeline iterations
+    </p>
 
 ### 4.2 Fine-Tuning Hyperparameters:
     Optimizer: AdamW (β1​=0.9, β2​=0.999, ϵ=10−8)
@@ -78,22 +81,25 @@ The application leverages a fine-tuned DistilBERT base model (distilbert-base-un
     Regularization Loop: Early Stopping (Patience = 1, monitored against Validation Loss)
 
 ### 4.3 Training Diagnostics & Reversion Log:
-    The model was fine-tuned over 10 epochs. Early stopping triggered at Epoch 4 when validation loss began to climb, and the pipeline automatically reverted to the optimal parameters from Epoch 2.
+    <p>
+    The model was fine-tuned over 10 epochs.
+    Early stopping triggered at Epoch 4 when validation loss began to climb, and the pipeline \n automatically reverted to the optimal parameters from Epoch 2.
         Epoch 1: Train Loss: 0.5765 | Val Loss: 0.3362 | Val Accuracy: 87.02%
         Epoch 2: Train Loss: 0.3060 | Val Loss: 0.2750 | Val Accuracy: 90.84% (Optimal Model Recovered)
         Epoch 3: Train Loss: 0.1392 | Val Loss: 0.3335 | Val Accuracy: 88.55%
         Epoch 4: Train Loss: 0.0622 | Val Loss: 0.3751 | Val Accuracy: 88.80% (Early Stopping Intervened)
+    </p>
 
 ### 4.4 Final Evaluation Performance Matrix
-    The model achieved an overall accuracy of 90.84% on a 20% holdout validation slice, displaying well-balanced classification characteristics across both target groups:
+The model achieved an overall accuracy of 90.84% on a 20% holdout validation slice, displaying well-balanced classification characteristics across both target groups:
 
-    Sentiment Target	Precision	Recall	F1-Score	Evaluation Support Count
-    Negative (Class 0)	    0.92	  0.91	  0.91	        202
-    Positive (Class 1)	    0.90	  0.91	  0.91	        191
-    
-    Overall Accuracy			              0.91	        393
-    Macro Average	        0.91	  0.91	  0.91	        393
-    Weighted Average	    0.91	  0.91	  0.91          393
+Sentiment Target	Precision	Recall	F1-Score	Evaluation Support Count
+Negative (Class 0)	    0.92	  0.91	  0.91	        202
+Positive (Class 1)	    0.90	  0.91	  0.91	        191
+
+Overall Accuracy			              0.91	        393
+Macro Average	        0.91	  0.91	  0.91	        393
+Weighted Average	    0.91	  0.91	  0.91          393
 
 # 5. Production Engineering: Problems and Fix
 
@@ -114,16 +120,16 @@ This matrix outlines the specific environmental obstacles encountered when porti
 └─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘
 
 ### 6.1. Provision Host Runtime
-    Isolated system dependencies and constructed a clean sandboxed virtual runtime block inside the cloud terminal shell.
+Isolated system dependencies and constructed a clean sandboxed virtual runtime block inside the cloud terminal shell.
 
 ### 6.2. Clean Assembly Injection
-    Directed compile paths into the custom scratch storage folder to safeguard limited cache space and installed production requirements without storing redundant disk cache.
+Directed compile paths into the custom scratch storage folder to safeguard limited cache space and installed production requirements without storing redundant disk cache.
 
 ### 6.3. Hydrate Compiled Weights
-    Leveraged the host instance's attached IAM Profile role to fetch the compiled machine learning weights securely from the AWS S3 without storing static access keys.
+Leveraged the host instance's attached IAM Profile role to fetch the compiled machine learning weights securely from the AWS S3 without storing static access keys.
 
 ### 6.4. Spawn Production Daemon
-    Executed the Uvicorn application loop inside a detached background process to ensure deployment availability continues uninterrupted after active SSH terminal sessions close in rhe EC2.
+Executed the Uvicorn application loop inside a detached background process to ensure deployment availability continues uninterrupted after active SSH terminal sessions close in rhe EC2.
 
 ## 7. CI/CD Automation Pipeline Strategy
 
@@ -133,13 +139,13 @@ Dynamic binary management is fully automated via integrated GitHub Actions trigg
 
 This project transitions a deep learning research notebook into a high-availability cloud service. By redesigning the data ingestion layer and applying strict production engineering principles, the application runs efficiently on a Free-Tier AWS cloud node.
 
-    Final Production Accuracy: 90.84% (An improvement over legacy LSTM baselines).
+* **Final Production Accuracy:** 90.84% (An improvement over legacy LSTM baselines).
 
-    Production Footprint Optimization: Reduced PyTorch memory consumption by ~90% on the production node by forcing CPU-bound inference execution paths (+cpu wheel bindings) and eliminating multi-gigabyte CUDA runtime driver packages.
+* **Production Footprint Optimization:** Reduced PyTorch memory consumption by ~90% on the production node by forcing CPU-bound inference execution paths (+cpu wheel bindings) and eliminating multi-gigabyte CUDA runtime driver packages.
 
-    Dynamic Data Pipelining: Swapped raw in-memory tensor arrays with an asynchronous PyTorch Dataset streaming generator, mitigating Out-Of-Memory (OOM) compiler crashes during resource-constrained deployments.
+* **Dynamic Data Pipelining:** Swapped raw in-memory tensor arrays with an asynchronous PyTorch Dataset streaming generator, mitigating Out-Of-Memory (OOM) compiler crashes during resource-constrained deployments.
 
-    Zero-Overhead Binary Streaming: Bypassed native Git LFS installation constraints on the cloud node by engineering an automated hub-and-spoke deployment pipeline using GitHub Actions and Amazon S3.
+* **Zero-Overhead Binary Streaming:** Bypassed native Git LFS installation constraints on the cloud node by engineering an automated hub-and-spoke deployment pipeline using GitHub Actions and Amazon S3.
 
 ### 9. Limitations and Future Work
 
