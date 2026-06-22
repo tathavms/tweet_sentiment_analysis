@@ -61,7 +61,7 @@ This architecture decouples source application code from heavy binary deep-learn
 │      13.48.162.241:8000         │
 └─────────────────────────────────┘
 ```
-
+```mermaid
 flowchart TD
     subgraph G[GitHub]
         direction TB
@@ -87,6 +87,8 @@ flowchart TD
     GH --> MW --> GHA --> S3
     S3 -->|Secure native AWS CLI pull<br/>(EC2-S3-ReadOnly-Role)| EC2
     EC2 --> EIP
+```
+
 
 ### 2.1 Strategic Infrastructure Decisions
 
