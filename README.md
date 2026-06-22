@@ -52,7 +52,7 @@ High-quality annotations were generated from a raw dataset (Tweets_unlabelled.cs
 └───────────────────┘      └──────────────────┘      └────────────────────┘      └───────────────────────┘
 
 ### 3.1 Preprocessing Engine (preprocess.py)
-<div style="background-color: #524f4f>
+<div style="background-color: #524f4f;">
 To ensure mathematical prediction consistency, incoming evaluation requests are normalized using the exact regular expression pipeline applied during model training:
 
 * **URL Neutralization:** Removes web links (http\S+|www\S+) to eliminate non-semantic text noise.
