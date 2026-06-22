@@ -16,6 +16,7 @@ While the first iterations of the project focused on the use of Recurrent Neural
 
 This architecture decouples source application code from heavy binary deep-learning artifacts, using an automated hub-and-spoke model to stream data efficiently into a restricted cloud environment.
 
+```text
 ┌────────────────────────────────────────────────────────┐
 │                 GitHub Main Repository                 │
 │    (FastAPI Code + Static Assets + LFS Text Pointer)   │
@@ -33,26 +34,26 @@ This architecture decouples source application code from heavy binary deep-learn
 │           ▲            │                   │  Authorized via EC2
 │           └────────────┼───────────────────┘  IAM Instance Profile
 └────────────────────────┘
+```
 
-Strategic Infrastructure Decisions
+### 2.1 Strategic Infrastructure Decisions
 
-    PyTorch-Native Weights (safetensors): Dropped traditional Python serialization (.pkl) to protect against arbitrary code execution vulnerabilities and speed up weight initialization times at startup.
+PyTorch-Native Weights (safetensors): Dropped traditional Python serialization (.pkl) to protect against arbitrary code execution vulnerabilities and speed up weight initialization times at startup.
 
-    IAM-Driven Asset Delivery: The EC2 host instance pulls compiled weights (model.safetensors) dynamically via the AWS CLI. Access is controlled through an attached IAM Instance Profile (EC2-S3-ReadOnly-Role) containing explicit AmazonS3ReadOnlyAccess permissions, removing the need for hardcoded credentials on the server.
+IAM-Driven Asset Delivery: The EC2 host instance pulls compiled weights (model.safetensors) dynamically via the AWS CLI. Access is controlled through an attached IAM Instance Profile (EC2-S3-ReadOnly-Role) containing explicit AmazonS3ReadOnlyAccess permissions, removing the need for hardcoded credentials on the server.
 
-    Isolated Production Sockets: The backend service is restricted to localhost loops within its private shell layer, running under a Uvicorn daemon bound to standard default Port 8000.
+Isolated Production Sockets: The backend service is restricted to localhost loops within its private shell layer, running under a Uvicorn daemon bound to standard default Port 8000.
 
 ## 3. Data Pipeline & Semi-Supervised Engineering
 
 High-quality annotations were generated from a raw dataset (Tweets_unlabelled.csv) using a programmatic, semi-supervised data enrichment pipeline.
-
+```text
 ┌───────────────────┐      ┌──────────────────┐      ┌────────────────────┐      ┌───────────────────────┐
 │ Raw Unlabeled Text│ ───> │ VADER Sentiment  │ ───> │ Meticulous Manual  │ ───> │ Ground Truth Dataset  │
 │  (2,000 Records)  │      │ Automated Lexicon│      │  Audit/Correction  │      │(manually_labelled.csv)│
 └───────────────────┘      └──────────────────┘      └────────────────────┘      └───────────────────────┘
-
+```
 ### 3.1 Preprocessing Engine (preprocess.py)
-<div style="background-color: #524f4f;">
 To ensure mathematical prediction consistency, incoming evaluation requests are normalized using the exact regular expression pipeline applied during model training:
 
 * **URL Neutralization:** Removes web links (http\S+|www\S+) to eliminate non-semantic text noise.
@@ -62,7 +63,6 @@ To ensure mathematical prediction consistency, incoming evaluation requests are 
 * **Hashtag Preserving Cleansing:** Strips the hash symbol (#) while maintaining the underlying phrase structure to extract trending keyword context.
 
 * **Vocabulary Standardization:** Forces lowercase casting and collapses multi-character spaces to align with the core vocabulary file.
-</div>
 
 ## 4. Model Architecture & Fine-Tuning Performance
 
@@ -78,25 +78,27 @@ Instead of loading tokenized tensors into memory all at once, text arrays are ma
     Loss Metrics Function: PyTorch CrossEntropyLoss computed over raw outputs (logits)
     Regularization Loop: Early Stopping (Patience = 1, monitored against Validation Loss)
 
-### 4.3 Training Diagnostics & Reversion Log:
-The model was fine-tuned over 10 epochs.
-Early stopping triggered at Epoch 4 when validation loss began to climb, and the pipeline automatically reverted to the optimal parameters from Epoch 2.
+### 4.3 Training Diagnostics & Reversion Log
 
-Epoch 1: Train Loss: 0.5765 | Val Loss: 0.3362 | Val Accuracy: 87.02%
-Epoch 2: Train Loss: 0.3060 | Val Loss: 0.2750 | Val Accuracy: 90.84% (Optimal Model Recovered)
-Epoch 3: Train Loss: 0.1392 | Val Loss: 0.3335 | Val Accuracy: 88.55%
-Epoch 4: Train Loss: 0.0622 | Val Loss: 0.3751 | Val Accuracy: 88.80% (Early Stopping Intervened)
+The model was fine-tuned over 10 epochs. Early stopping triggered at Epoch 4 when validation loss began to climb, and the pipeline automatically reverted to the optimal parameters from Epoch 2.
+
+| Epoch | Train Loss | Val Loss | Val Accuracy | Status |
+| --- | ---: | ---: | ---: | --- |
+| 1 | 0.5765 | 0.3362 | 87.02% | - |
+| 2 | 0.3060 | 0.2750 | 90.84% | Optimal Model Recovered |
+| 3 | 0.1392 | 0.3335 | 88.55% | - |
+| 4 | 0.0622 | 0.3751 | 88.80% | Early Stopping Intervened |
 
 ### 4.4 Final Evaluation Performance Matrix
 The model achieved an overall accuracy of 90.84% on a 20% holdout validation slice, displaying well-balanced classification characteristics across both target groups:
 
-Sentiment Target	Precision	Recall	F1-Score	Evaluation Support Count
-Negative (Class 0)	    0.92	  0.91	  0.91	        202
-Positive (Class 1)	    0.90	  0.91	  0.91	        191
-
-Overall Accuracy			              0.91	        393
-Macro Average	        0.91	  0.91	  0.91	        393
-Weighted Average	    0.91	  0.91	  0.91          393
+| Sentiment Target | Precision | Recall | F1-Score | Evaluation Support Count |
+|---|---:|---:|---:|---:|
+| Negative (Class 0) | 0.92 | 0.91 | 0.91 | 202 |
+| Positive (Class 1) | 0.90 | 0.91 | 0.91 | 191 |
+| Overall Accuracy |  |  | 0.91 | 393 |
+| Macro Average | 0.91 | 0.91 | 0.91 | 393 |
+| Weighted Average | 0.91 | 0.91 | 0.91 | 393 |
 
 # 5. Production Engineering: Problems and Fix
 
@@ -110,12 +112,12 @@ This matrix outlines the specific environmental obstacles encountered when porti
 | Massive CUDA Footprint Bloat: Standard deep learning wheels pull multi-gigabyte GPU acceleration drivers by default, completely overwhelming small server storage. | CPU-Optimized Wheel Stripping: Configured custom index headers inside the dependency manifest to force-install lightweight CPU-only target wheels (`+cpu`). | "Optimized our target server footprint by stripping out multi-gigabyte CUDA GPU drivers in favor of lightweight CPU inference dependencies." |
 
 # 6. Deployment Runbook
-
+```text
 ┌─────────────────────────┐     ┌─────────────────────────┐     ┌─────────────────────────┐     ┌─────────────────────────┐
 │  1. Provision Runtime   │───> │  2. Clean Assembly      │───> │  3. Hydrate Weights     │───> │  4. Spawn Background    │
 │  (Venv Setup & Python)  │     │  (Non-Cached Pip Build) │     │  (Native S3 Pull)       │     │  (Uvicorn Daemon Entry) │
 └─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘
-
+```
 ### 6.1. Provision Host Runtime
 Isolated system dependencies and constructed a clean sandboxed virtual runtime block inside the cloud terminal shell.
 
