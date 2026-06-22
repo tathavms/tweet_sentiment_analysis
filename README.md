@@ -20,6 +20,9 @@ While the first iterations of the project focused on the use of Recurrent Neural
 
 This architecture decouples source application code from heavy binary deep-learning artifacts, using an automated hub-and-spoke model to stream data efficiently into a restricted cloud environment.
 
+<!-- Commenting out the text architecture diagram below
+as using mermaid diagram code written below that -->
+<!--
 ```text
 ┌────────────────────────────────────────────────────────┐
 │                 GitHub Main Repository                 │
@@ -61,26 +64,27 @@ This architecture decouples source application code from heavy binary deep-learn
 │      13.48.162.241:8000         │
 └─────────────────────────────────┘
 ```
+-->
 ```mermaid
 flowchart TD
     subgraph G["GitHub"]
         direction TB
-        GH["GitHub Main Repository<br/>Source Code + Static Assets + Git LFS Pointer"]
-        CP["Code Push<br/>All Files"]
+        GH["GitHub Main Repository<br/> (Source Code + Static Assets + Git LFS Pointer)"]
+        CP["Code Push<br/> (All Files)"]
         MW["Model Weight Changes Only"]
     end
 
     subgraph D["Deployment"]
         direction TB
         GP["Manual Git Pull<br/>on EC2 Instance"]
-        GHA["GitHub Actions Sync<br/>Git LFS to Amazon S3"]
+        GHA["GitHub Actions Sync<br/> (Git LFS to Amazon S3)"]
     end
 
     subgraph A["AWS"]
         direction TB
-        S3["Amazon S3 Bucket<br/>twitter-sentiment-lfs-assets"]
+        S3["Amazon S3 Bucket<br/> (twitter-sentiment-lfs-assets)"]
         EC2["Amazon EC2 t3.micro<br/>Amazon Linux 2023<br/>Python 3.12 Virtual Environment<br/>1 GB RAM + 2 GB Swap<br/>Uvicorn on Port 8000"]
-        EIP["Elastic IP address<br/>Public live page access<br/>http://13.48.162.241:8000"]
+        EIP["Elastic IP address<br/> (Public live page access<br/>http://13.48.162.241:8000)"]
     end
 
     GH --> CP --> GP --> EC2
