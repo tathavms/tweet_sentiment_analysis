@@ -36,3 +36,31 @@ jobs:
           context: .
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      - name: Execute Remote SSH Commands on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }} # secret in the action's environment loop
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: GHCR_TOKEN    # 2. plugin to securely pass this variable over SSH
+          script: |
+            # 3. Using the secure environment variable on EC2 host
+            docker login ghcr.io -u tathavms -p $GHCR_TOKEN
+            
+            # 4.newly built code image layer
+            docker pull ghcr.io/tathavms/tweet_sentiment_analysis:latest
+            
+            # 5.old running container stopped and erased
+            #|| true acts as an error bypass. It tells the runner: "Try to delete the container. If it's not found, ignore the warning and keep moving forward to step 6 anyway."
+
+            docker rm -f tweet_app || true
+            
+            # 6. new container using the existing host model file mount
+            docker run -d \
+              --name tweet_app \
+              -p 8000:8000 \
+              -v /home/ec2-user/tweet_sentiment_analysis/model_artifacts/model.safetensors:/app/model_artifacts/model.safetensors \
+              --restart unless-stopped \
+              ghcr.io/tathavms/tweet_sentiment_analysis:latest
