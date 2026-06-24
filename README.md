@@ -1,10 +1,12 @@
 # Tweet Sentiment Analysis Platform
 
-A production-grade, end-to-end Machine Learning web application that classifies text sentiment into Positive or Negative categories. The predictive engine utilizes a fine-tuned Hugging Face DistilBERT model implemented via PyTorch and served dynamically using a FastAPI backend architecture served through AWS.
+A production-grade, end-to-end Machine Learning web application that classifies text sentiment into **Positive** or **Negative** categories. The application uses a fine-tuned **Hugging Face DistilBERT** model implemented with **PyTorch**, served through **FastAPI**, containerized with **Docker**, and deployed to AWS EC2 through automated **GitHub Actions CI/CD**.
 
-# Live Demo
+## Live Service & Metrics
 
-- **Public URL:** [http://13.48.162.241:8000](http://13.48.162.241:8000) 
+* **Live App URL:** [http://13.48.162.241:8000](http://13.48.162.241:8000)
+* **Final Production Accuracy:** **90.84%**
+* **Production Runtime:** Dockerized FastAPI service on AWS EC2 with model weights supplied through a secure S3-backed bind mount.
 
 > **Author:** Tathagata Banerjee
 
@@ -12,185 +14,216 @@ A production-grade, end-to-end Machine Learning web application that classifies 
 
 ## 1. Problem Statement
 
-The main goal of this project was to build and train an advanced deep learning model that can effectively classify the sentiment of tweets into positive or negative categories. The goal of the deep learning model was to perform sentiment analysis on a tweet dataset. The project scope included a complete machine learning cycle starting from an unlabeled dataset that required a semi-supervised approach to generate high-quality training labels. This was followed by a rigorous text data cleaning procedure that focused on the standardization of texts for the model. This was the core of the project and it involved the model implementation, training and extensive evaluation of its performance on a test dataset.
+The goal of this project was to build an end-to-end sentiment analysis system that can classify tweet-style text into positive or negative sentiment. The project covers the full ML lifecycle: data preparation, text cleaning, model experimentation, transformer fine-tuning, evaluation, packaging, and cloud deployment.
 
-While the first iterations of the project focused on the use of Recurrent Neural Networks (RNNs) archicture with LSTM layers, the final model selected for this project was a Transformer model. More specifically, a DistilBERT model was fine-tuned for this task which was pretrained on the transformer encoder. This decision stemmed from the strong performance of transformer models for text classification problems due to their complex contextual understanding of language.
+Earlier iterations explored recurrent neural networks with LSTM layers. The final production model uses **DistilBERT**, a lightweight transformer encoder that gives stronger contextual understanding while remaining practical for CPU-only inference on a small EC2 instance.
+
+---
 
 ## 2. End-to-End System Architecture
 
-This architecture decouples source application code from heavy binary deep-learning artifacts, using an automated hub-and-spoke model to stream data efficiently into a restricted cloud environment.
+The current architecture separates lightweight application code from the large transformer weight file. Application changes rebuild and redeploy the Docker image. Model-weight changes sync the Git LFS asset to Amazon S3, hydrate the EC2 host file, and restart the running container with the refreshed weight mounted into `/app/model_artifacts/model.safetensors`.
 
-<!-- Commenting out the text architecture diagram below
-as using mermaid diagram code written below that -->
-<!--
 ```text
-┌────────────────────────────────────────────────────────┐
-│                 GitHub Main Repository                 │
-│     (Source Code + Static Assets + Git LFS Pointer)    │
-└───────────┬────────────────────────────────┬───────────┘
-            │                                │
- [Code Push (All Files)]          [Model Weight Changes Only]
-            │                                │
-            ▼                                ▼
-┌──────────────────────────┐      ┌──────────────────────────┐
-│     Manual Git Pull      │      │    GitHub Actions Sync   │
-│      on EC2 Instance     │      │   (lfs: true -> AWS S3)  │
-└─────────────┬────────────┘      └────────────┬─────────────┘
-              │                                │
-              │                                ▼
-              │                    ┌────────────────────────┐
-              │                    │    Amazon S3 Bucket    │
-              │                    │   (twitter-sentiment-  │
-              │                    │      lfs-assets)       │
-              │                    └───────────┬────────────┘
-              │                                │
-              │                                │ [Secure Native AWS CLI Pull]
-              │                                │ (EC2-S3-ReadOnly-Role)
-              ▼                                │ Authorized via EC2
-┌─────────────────────────────────┐            │ IAM Instance Profile
-│        AWS EC2 t3.micro         │◄───────────┘
-│      (Amazon Linux 2023)        │
-│ ─────────────────────────────── │
-│ [Venv] Python 3.12              │
-│ [RAM]  1GB Physical + 2GB Swap  │
-│ [Port] 8000 (Uvicorn Daemon)    │
-│        [Local Service]          │
-└───────────────┬─────────────────┘
-                │
-                │ [Public Browser Access]
-                ▼
-┌─────────────────────────────────┐
-│  AWS Elastic IP (Public UI)     │
-│      13.48.162.241:8000         │
-└─────────────────────────────────┘
+GitHub main branch
+|
++-- App/runtime change
+|   `-- deploy-image.yml
+|       `-- Docker multi-stage build
+|           `-- GitHub Container Registry
+|               `-- SSH to EC2: docker pull + replace tweet_app
+|
+`-- model_artifacts/model.safetensors change
+    `-- deploy-s3.yml
+        `-- checkout with Git LFS
+            `-- upload weight file to Amazon S3
+                `-- SSH to EC2: aws s3 cp + docker restart tweet_app
+
+AWS EC2 production host
+|
++-- /home/ec2-user/tweet_sentiment_analysis/model_artifacts/model.safetensors
+|   `-- bind-mounted into the container at /app/model_artifacts/model.safetensors
+|
+`-- tweet_app Docker container
+    `-- FastAPI + Uvicorn on port 8000 -> Elastic IP public endpoint
 ```
--->
+
 ```mermaid
-flowchart TD
-    subgraph G["GitHub"]
+flowchart LR
+    subgraph Repo["GitHub Repository"]
         direction TB
-        GH["GitHub Main Repository<br/> (Source Code + Static Assets + Git LFS Pointer)"]
-        CP["Code Push<br/> (All Files)"]
-        MW["Model Weight Changes Only"]
+        Source["FastAPI app, Dockerfile,<br/>requirements, templates, CSS"]
+        Weights["model_artifacts/model.safetensors<br/>(tracked with Git LFS)"]
     end
 
-    subgraph D["Deployment"]
+    subgraph Actions["GitHub Actions CI/CD"]
         direction TB
-        GP["Manual Git Pull<br/>on EC2 Instance"]
-        GHA["GitHub Actions Sync<br/> (Git LFS to Amazon S3)"]
+        ImageWF["deploy-image.yml<br/>Build image and redeploy container"]
+        S3WF["deploy-s3.yml<br/>Sync model weights and restart container"]
     end
 
-    subgraph A["AWS"]
+    subgraph Stores["Artifact Stores"]
         direction TB
-        S3["Amazon S3 Bucket<br/> (twitter-sentiment-lfs-assets)"]
-        EC2["Amazon EC2 t3.micro<br/>Amazon Linux 2023<br/>Python 3.12 Virtual Environment<br/>1 GB RAM + 2 GB Swap<br/>Uvicorn on Port 8000"]
-        EIP["Elastic IP address<br/> (Public live page access<br/>http://13.48.162.241:8000)"]
+        GHCR["GitHub Container Registry<br/>ghcr.io/tathavms/tweet_sentiment_analysis:latest"]
+        S3["Amazon S3<br/>twitter-sentiment-lfs-assets/model.safetensors"]
     end
 
-    GH --> CP --> GP --> EC2
-    GH --> MW --> GHA --> S3
-    S3 -->|"Secure AWS CLI pull<br/>via EC2 instance profile"| EC2
-    EC2 --> EIP
+    subgraph EC2["AWS EC2 Production Host"]
+        direction TB
+        HostWeight["Host model file<br/>/home/ec2-user/.../model.safetensors"]
+        Container["tweet_app Docker container<br/>FastAPI + Uvicorn :8000"]
+        Public["Elastic IP endpoint<br/>13.48.162.241:8000"]
+    end
+
+    Source -->|"push, excluding README/images/notebooks<br/>and weight-only changes"| ImageWF
+    ImageWF -->|"docker build + push"| GHCR
+    ImageWF -->|"SSH: docker pull + docker run"| Container
+
+    Weights -->|"push affecting model.safetensors"| S3WF
+    S3WF -->|"checkout lfs: true + aws s3 cp"| S3
+    S3WF -->|"SSH: aws s3 cp + docker restart"| HostWeight
+
+    GHCR -->|"docker pull latest"| Container
+    S3 -->|"aws s3 cp"| HostWeight
+    HostWeight -->|"Docker bind mount"| Container
+    Container -->|"port 8000"| Public
 ```
 
+### 2.1 Architecture Highlights
 
-### 2.1 Strategic Infrastructure Decisions
+* **Two-lane CI/CD:** `deploy-image.yml` handles application and runtime changes. `deploy-s3.yml` handles pushes that include `model_artifacts/model.safetensors` updates.
+* **Slim production image:** The Dockerfile copies FastAPI code and small Hugging Face metadata into the runtime image, but intentionally excludes the 267 MB model weight file.
+* **Externalized model weight:** The large `.safetensors` file is tracked with Git LFS, copied to S3, pulled onto EC2, and mounted into the container at runtime.
+* **CPU-first inference:** `requirements.txt` pins CPU PyTorch wheels through the PyTorch CPU index to avoid CUDA driver bloat on the EC2 host.
+* **Operationally simple redeploys:** The production container is replaced as `tweet_app` for image changes and restarted for weight-only changes.
 
-PyTorch-Native Weights (safetensors): Dropped traditional Python serialization (.pkl) to protect against arbitrary code execution vulnerabilities and speed up weight initialization times at startup.
+### 2.2 Runtime Request Flow
 
-IAM-Driven Asset Delivery: The EC2 host instance pulls compiled weights (model.safetensors) dynamically via the AWS CLI. Access is controlled through an attached IAM Instance Profile (EC2-S3-ReadOnly-Role) containing explicit AmazonS3ReadOnlyAccess permissions, removing the need for hardcoded credentials on the server.
-
-Isolated Production Sockets: The backend service is restricted to localhost loops within its private shell layer, running under a Uvicorn daemon bound to standard default Port 8000.
-
-### 2.2 Key Architectural Decisions:
-* **Decoupled Model Artifacts:** Moved away from rigid, version-dependent serialization formats (`.pkl`). The app saves and loads native PyTorch tensor formats (`model.safetensors`), configurations, and structural tokenizers entirely separately at initialization.
-* **Hybrid Asset Sync Pipeline:** The standard repository tracks a heavy transformer model file (`>100MB`) via Git LFS. To eliminate the overhead of hosting a Git LFS agent on a resource-constrained production node, a targeted GitHub Actions pipeline intercepts changes to `.safetensors`, pulling the native asset and caching it inside an Amazon S3 bucket (`twitter-sentiment-lfs-assets`).
-* **Secure Cloud Extraction:** The AWS EC2 deployment node extracts the model binary directly from the cloud bucket utilizing native AWS CLI binaries, authorized via an explicit IAM Instance Profile Policy (`EC2-S3-ReadOnly-Role`), bypassing the need to store hardcoded static cloud access keys.
-
----
+```text
+User browser / API client
+        |
+        v
+FastAPI app.py
+        |
+        +-- GET /              -> Jinja2 HTML form
+        +-- POST /predict      -> HTML prediction result
+        +-- POST /api/predict  -> JSON prediction result
+        +-- GET /api/health    -> service health probe
+        |
+        v
+predictor.py
+        |
+        +-- preprocess_text()
+        +-- DistilBertTokenizer.from_pretrained(model_artifacts/)
+        +-- DistilBertForSequenceClassification.from_pretrained(model_artifacts/)
+        |
+        v
+Positive / Negative label + confidence score
+```
 
 ### 2.3 Repository Structure
 
 ```text
 project/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml                  # Conditional S3 asset sync engine
-├── app/
-│   ├── app.py                          # Primary FastAPI router and template endpoints
-│   ├── predictor.py                    # Model loading, tokenization, and inference routines
-│   ├── preprocess.py                   # Custom RegEx clean & linguistic normalizer matching notebook
-│   ├── static/
-│   │   └── style.css                   # Frontend web form style file
-│   └── templates/
-│       └── index.html                  # Frontend web form user interface
-├── images/
-│   └── ...                             # Training graph images for README visuals
-├── model_artifacts/
-│   ├── config.json                     # Model structural architecture properties
-│   ├── model.safetensors               # Pinned PyTorch model state-dict weights
-│   ├── tokenizer_config.json           # Hugging Face tokenizer constraints
-│   ├── vocab.txt                       # WordPiece vocabulary indices mapping
-│   ├── special_tokens_map.json         # Out-of-vocabulary and token boundary definitions
-│   └── label_map.json                  # Numerical ID mappings to Positive/Negative
-├── notebooks/
-│   └── ...                             # Experimental trial-and-error notebooks during training 
-├── .gitattributes                      # Git LFS tracking rules
-├── .gitignore                          # Git ignore rules
-├── README.md                           # Project documentation
-├── Sentiment_Analysis_Deployed_code.ipynb  # Final training notebook
-└── requirements.txt                    # Constrained system dependency definition
+|-- .github/
+|   `-- workflows/
+|       |-- deploy-image.yml              # Builds Docker image, pushes GHCR, redeploys EC2 container
+|       `-- deploy-s3.yml                 # Syncs Git LFS model weight to S3, refreshes EC2 mount
+|-- app/
+|   |-- app.py                            # FastAPI UI routes, API route, and health check
+|   |-- predictor.py                      # DistilBERT loading, tokenization, inference, confidence
+|   |-- preprocess.py                     # URL, mention, hashtag, and whitespace normalization
+|   |-- static/style.css                  # Single-page web UI styling
+|   `-- templates/index.html              # Tweet input form and prediction display
+|-- images/
+|   |-- confusion_matrix.png              # README evaluation visual
+|   `-- plots.png                         # README training visual
+|-- model_artifacts/
+|   |-- config.json                       # DistilBERT architecture config copied into image
+|   |-- label_map.json                    # Class ID to sentiment label mapping
+|   |-- model.safetensors                 # Large Git LFS weight file, mounted in production
+|   |-- special_tokens_map.json           # Tokenizer special-token definitions
+|   |-- tokenizer_config.json             # Tokenizer settings copied into image
+|   `-- vocab.txt                         # WordPiece vocabulary copied into image
+|-- notebooks/
+|   |-- TF_Sentiment Analysis_code.ipynb  # Earlier TensorFlow experiment
+|   `-- (TO be RUN on GPU 1060) Pytorch_Sentiment Analysis_code.ipynb
+|-- dataset/                              # Local training data; ignored from Git
+|-- .gitattributes                        # Git LFS rule for *.safetensors
+|-- .gitignore                            # Ignores envs, caches, datasets, CSVs, logs
+|-- Dockerfile                            # Multi-stage Python 3.12 slim production image
+|-- README.md                             # Project documentation
+|-- Sentiment_Analysis_Deployed_code.ipynb
+`-- requirements.txt                      # Pinned FastAPI, Torch CPU, Transformers dependencies
 ```
+
+---
 
 ## 3. Data Pipeline & Semi-Supervised Engineering
 
-High-quality annotations were generated from a raw dataset (Tweets_unlabelled.csv) using a programmatic, semi-supervised data enrichment pipeline.
+High-quality training labels were created through a semi-supervised workflow, then manually reviewed before model training.
+
 ```text
-┌───────────────────┐      ┌──────────────────┐      ┌────────────────────┐      ┌───────────────────────┐
-│ Raw Unlabeled Text│ ───> │ VADER Sentiment  │ ───> │ Meticulous Manual  │ ───> │ Ground Truth Dataset  │
-│  (2,000 Records)  │      │ Automated Lexicon│      │  Audit/Correction  │      │(manually_labelled.csv)│
-└───────────────────┘      └──────────────────┘      └────────────────────┘      └───────────────────────┘
+Raw tweet data
+      |
+      v
+Automated sentiment labeling / enrichment
+      |
+      v
+Manual audit and correction
+      |
+      v
+Clean labeled dataset
+      |
+      v
+DistilBERT fine-tuning and validation
 ```
-### 3.1 Preprocessing Engine (preprocess.py)
-To ensure mathematical prediction consistency, incoming evaluation requests are normalized using the exact regular expression pipeline applied during model training:
 
-* **URL Neutralization:** Removes web links (http\S+|www\S+) to eliminate non-semantic text noise.
+### 3.1 Preprocessing Engine
 
-* **Handle Isolation:** Swaps user mentions (@username) with a generic token (@user) to generalize social interaction structures.
+The deployed app uses the same normalization style used during model training:
 
-* **Hashtag Preserving Cleansing:** Strips the hash symbol (#) while maintaining the underlying phrase structure to extract trending keyword context.
+* **URL removal:** Removes `http`, `https`, and `www` links.
+* **Handle normalization:** Converts user mentions into a generic `user` token.
+* **Hashtag preservation:** Removes the `#` symbol while keeping the hashtag text.
+* **Whitespace cleanup:** Collapses repeated spaces and trims the final text.
 
-* **Vocabulary Standardization:** Forces lowercase casting and collapses multi-character spaces to align with the core vocabulary file.
+---
 
 ## 4. Model Architecture & Fine-Tuning Performance
 
-The application leverages a fine-tuned DistilBERT base model (distilbert-base-uncased). This architecture provides a robust context-aware vocabulary system while utilizing a streamlined transformer head that runs efficiently on CPU servers.
+The application uses a fine-tuned `distilbert-base-uncased` model. DistilBERT keeps much of BERT's language understanding while reducing runtime cost, which makes it a strong fit for CPU-only inference.
 
-### 4.1 Dynamic Memory Tokenization: 
-Instead of loading tokenized tensors into memory all at once, text arrays are managed through a custom PyTorch object (SentimentDataset). This architecture feeds tokenized batches on-demand during pipeline iterations
+### 4.1 Dynamic Memory Tokenization
 
-### 4.2 Fine-Tuning Hyperparameters:
-    Optimizer: AdamW (β1​=0.9, β2​=0.999, ϵ=10−8)
-    Learning Rate: 5×10−5 (Preserves pre-trained structural weights)
-    Batch Size: 16 (Optimal memory footprint on low-resource environments)
-    Loss Metrics Function: PyTorch CrossEntropyLoss computed over raw outputs (logits)
-    Regularization Loop: Early Stopping (Patience = 1, monitored against Validation Loss)
+Instead of preloading every tokenized tensor into memory, training used a custom PyTorch dataset pattern that tokenized examples on demand. This reduced memory pressure during experimentation and kept the pipeline more scalable.
+
+### 4.2 Fine-Tuning Hyperparameters
+
+```text
+Optimizer: AdamW
+Learning rate: 5e-5
+Batch size: 16
+Loss function: PyTorch CrossEntropyLoss over raw logits
+Regularization: Early stopping with patience = 1, monitored on validation loss
+```
 
 ### 4.3 Training Diagnostics & Reversion Log
 
-The model was fine-tuned over 10 epochs. Early stopping triggered at Epoch 4 when validation loss began to climb, and the pipeline automatically reverted to the optimal parameters from Epoch 2.
+The model was fine-tuned over 10 planned epochs. Early stopping triggered at epoch 4 when validation loss increased, and the training flow restored the best model from epoch 2.
 
 | Epoch | Train Loss | Val Loss | Val Accuracy | Status |
 | --- | ---: | ---: | ---: | --- |
 | 1 | 0.5765 | 0.3362 | 87.02% | - |
-| 2 | 0.3060 | 0.2750 | 90.84% | Optimal Model Recovered |
+| 2 | 0.3060 | 0.2750 | 90.84% | Best model |
 | 3 | 0.1392 | 0.3335 | 88.55% | - |
-| 4 | 0.0622 | 0.3751 | 88.80% | Early Stopping Intervened |
+| 4 | 0.0622 | 0.3751 | 88.80% | Early stopping |
 
 ### 4.4 Final Evaluation Performance Matrix
-The model achieved an overall accuracy of 90.84% on a 20% holdout validation slice, displaying well-balanced classification characteristics across both target groups:
 
-| Sentiment Target | Precision | Recall | F1-Score | Evaluation Support Count |
+The model achieved **90.84%** accuracy on a 20% holdout validation slice, with balanced behavior across both target classes.
+
+| Sentiment Target | Precision | Recall | F1-Score | Support |
 |---|---:|---:|---:|---:|
 | Negative (Class 0) | 0.92 | 0.91 | 0.91 | 202 |
 | Positive (Class 1) | 0.90 | 0.91 | 0.91 | 191 |
@@ -198,57 +231,93 @@ The model achieved an overall accuracy of 90.84% on a 20% holdout validation sli
 | Macro Average | 0.91 | 0.91 | 0.91 | 393 |
 | Weighted Average | 0.91 | 0.91 | 0.91 | 393 |
 
-# 5. Production Engineering: Problems and Fix
+---
 
-This matrix outlines the specific environmental obstacles encountered when porting deep learning pipelines from a local local Windows environment onto a resource-constrained Free-Tier cloud host (t3.micro, 1 GB RAM) running Amazon Linux 2023, along with their respective engineering solutions.
+## 5. Production Engineering: Problems and Fixes
 
-| Problem Encountered | Production-Grade Fix | Gist |
+This project was engineered for a small AWS EC2 host while still serving a transformer model reliably.
+
+| Problem Encountered | Production-Grade Fix | Impact |
 |---|---|---|
-| OS Platform Pollution: Local Windows dependencies (`winloop`, `mpi4py`, `pywin32`) instantly crashed wheel compilation loops on Linux targets. | Isolated Environment Markers: Purged redundant modules and isolated active ecosystem dependencies directly in `requirements.txt` via conditional platform scopes (`sys_platform == 'win32'`). | "Isolated runtime environments by scrubbing developer machines' local package leaks using environment markers." |
-| Out of Memory (OOM) Crashes: Heavy structural dependencies (`torch`, `transformers`) routinely exhausted the native 1 GB RAM allocation, dropping SSH terminals. | Virtual RAM Allocation: Provisioned a targeted 2 GB Swap Space file (`/swapfile`) directly onto the primary storage host, establishing an overhead buffer to survive memory spikes. | "Prevented Linux OOM-killer terminal crashes by provisioning a 2 GB active swap file to absorb initialization memory spikes." |
-| Storage Cache Exhaustion: Compiling dense wheels threw `Errno 28` execution failures due to filling up the restricted memory-backed `/tmp` target directory. | Alternative Scratchpad Routing: Remapped internal package compiler locations to a persistent workspace directory (`TMPDIR=~/pip_tmp`) and expanded root EBS volumes to 20 GB. | "Re-routed pip's background build storage paths away from restricted directories into an expanded persistent EBS block volume." |
-| Massive CUDA Footprint Bloat: Standard deep learning wheels pull multi-gigabyte GPU acceleration drivers by default, completely overwhelming small server storage. | CPU-Optimized Wheel Stripping: Configured custom index headers inside the dependency manifest to force-install lightweight CPU-only target wheels (`+cpu`). | "Optimized our target server footprint by stripping out multi-gigabyte CUDA GPU drivers in favor of lightweight CPU inference dependencies." |
+| Large model artifact bloated deployments. | Kept `model.safetensors` out of the Docker image and mounted it from the EC2 host after S3 hydration. | Faster image rebuilds and smaller registry pushes. |
+| Git LFS is awkward on a small production host. | GitHub Actions checks out the real LFS file and copies it to S3; EC2 only pulls from S3. | Production avoids needing Git LFS runtime setup. |
+| CUDA-enabled ML wheels are too heavy for CPU EC2 inference. | Pinned CPU PyTorch wheels through `https://download.pytorch.org/whl/cpu`. | Avoids multi-GB CUDA dependency overhead. |
+| Manual process restarts are fragile. | Docker runs a named `tweet_app` container with `--restart unless-stopped`. | Container survives host restarts and redeploys cleanly. |
+| App changes and model-weight changes have different deployment needs. | Split GitHub Actions into `deploy-image.yml` and `deploy-s3.yml`. | Avoids unnecessary S3 syncs and unnecessary image rebuilds. |
 
-# 6. Deployment Runbook
+---
+
+## 6. Deployment Runbook
+
 ```text
-┌─────────────────────────┐     ┌─────────────────────────┐     ┌─────────────────────────┐     ┌─────────────────────────┐
-│  1. Provision Runtime   │───> │  2. Clean Assembly      │───> │  3. Hydrate Weights     │───> │  4. Spawn Background    │
-│  (Venv Setup & Python)  │     │  (Non-Cached Pip Build) │     │  (Native S3 Pull)       │     │  (Uvicorn Daemon Entry) │
-└─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘
+Code/runtime deployment
+1. Push app, Dockerfile, workflow, or requirements change to main
+2. deploy-image.yml builds Docker image from the multi-stage Dockerfile
+3. Image is pushed to GitHub Container Registry
+4. GitHub Actions SSHs into EC2
+5. EC2 pulls latest image, replaces tweet_app, and bind-mounts the existing model weight
+
+Model-weight deployment
+1. Push model_artifacts/model.safetensors to main
+2. deploy-s3.yml checks out the real Git LFS file
+3. GitHub Actions uploads the weight to S3
+4. GitHub Actions SSHs into EC2
+5. EC2 pulls the updated weight from S3 and restarts tweet_app
 ```
-### 6.1. Provision Host Runtime
-Isolated system dependencies and constructed a clean sandboxed virtual runtime block inside the cloud terminal shell.
 
-### 6.2. Clean Assembly Injection
-Directed compile paths into the custom scratch storage folder to safeguard limited cache space and installed production requirements without storing redundant disk cache.
+### 6.1 Docker Build Design
 
-### 6.3. Hydrate Compiled Weights
-Leveraged the host instance's attached IAM Profile role to fetch the compiled machine learning weights securely from the AWS S3 without storing static access keys.
+The Dockerfile uses a two-stage build:
 
-### 6.4. Spawn Production Daemon
-Executed the Uvicorn application loop inside a detached background process to ensure deployment availability continues uninterrupted after active SSH terminal sessions close in rhe EC2.
+* **Builder stage:** Installs dependencies from `requirements.txt` using Python 3.12 slim and CPU PyTorch wheels.
+* **Runtime stage:** Copies installed packages, app code, templates, CSS, and lightweight model metadata.
+* **Intentional exclusion:** `model.safetensors` is not copied into the image; it is mounted at runtime.
+
+### 6.2 Production Container Command
+
+The deployed container runs:
+
+```text
+uvicorn app.app:app --host 0.0.0.0 --port 8000
+```
+
+The EC2 deployment maps host port `8000` to container port `8000` and mounts:
+
+```text
+/home/ec2-user/tweet_sentiment_analysis/model_artifacts/model.safetensors
+    -> /app/model_artifacts/model.safetensors
+```
+
+---
 
 ## 7. CI/CD Automation Pipeline Strategy
 
-Dynamic binary management is fully automated via integrated GitHub Actions triggers. To maximize workflow execution efficiency and eliminate unnecessary S3 API resource consumption, the workflow features conditional path-filtering. Push events containing static changes (such as modifications to frontend HTML templates, CSS styles, or python app logic) completely bypass S3 execution loops. The deployment pipeline wakes up only when true structural transformations occur within the binary file path itself (model_artifacts/model.safetensors).
+The CI/CD design is intentionally path-sensitive:
+
+| Workflow | Trigger | Main Work | Production Effect |
+|---|---|---|---|
+| `deploy-image.yml` | Push to `main` except README, images, notebooks, `.gitignore`, and `model.safetensors`-only changes | Build Docker image, push to GHCR, SSH into EC2, replace container | Deploys new application/runtime version |
+| `deploy-s3.yml` | Push to `main` affecting `model_artifacts/model.safetensors` | Checkout with Git LFS, upload weight to S3, SSH into EC2, pull weight, restart container | Updates model weights without rebuilding image |
+
+This split keeps recruiter-visible engineering intent clear: the service treats code, runtime dependencies, and model binaries as separate deployment concerns.
+
+---
 
 ## 8. Executive Summary & Impact Metrics
 
-This project transitions a deep learning research notebook into a high-availability cloud service. By redesigning the data ingestion layer and applying strict production engineering principles, the application runs efficiently on a Free-Tier AWS cloud node.
+This project transitions a deep learning notebook into a cloud-hosted web service. The main engineering achievement is the production architecture: a lightweight Dockerized FastAPI app, a separately managed transformer weight artifact, and GitHub Actions workflows that deploy each part through the correct path.
 
-* **Final Production Accuracy:** 90.84% (An improvement over legacy LSTM baselines).
+* **Final Production Accuracy:** 90.84%.
+* **Transformer Productionization:** Fine-tuned DistilBERT model served through FastAPI.
+* **Dockerized Runtime:** Multi-stage Python 3.12 slim image with CPU-only ML dependencies.
+* **Decoupled Artifacts:** Git LFS plus S3 handles the large model file outside the application image.
+* **Automated Deployment:** GHCR image deployment and S3 model-weight sync are both automated through GitHub Actions.
 
-* **Production Footprint Optimization:** Reduced PyTorch memory consumption by ~90% on the production node by forcing CPU-bound inference execution paths (+cpu wheel bindings) and eliminating multi-gigabyte CUDA runtime driver packages.
+---
 
-* **Dynamic Data Pipelining:** Swapped raw in-memory tensor arrays with an asynchronous PyTorch Dataset streaming generator, mitigating Out-Of-Memory (OOM) compiler crashes during resource-constrained deployments.
+## 9. Limitations and Future Work
 
-* **Zero-Overhead Binary Streaming:** Bypassed native Git LFS installation constraints on the cloud node by engineering an automated hub-and-spoke deployment pipeline using GitHub Actions and Amazon S3.
-
-### 9. Limitations and Future Work
-
-While the results of this project are encouraging, several areas present opportunities for further refinement and development:
-
-* **Enlarging the Training Corpus:** The model's performance is fundamentally tied to the dataset it was trained on. A future iteration of this work would benefit significantly from expanding the corpus to 5,000-10,000 labeled tweets to improve the model's generalizability and accuracy across more diverse language.
-* **NGINX Reverse Proxy Management:** Encapsulate backend server exposure by intercepting incoming public HTTP Port 80 requests and routing traffic down onto local sockets safely.
-* **Multi-Application Single-IP Aggregation:** Implement clean micro-routing proxy layers to serve static frontend portfolio landing spaces alongside distinct decoupled internal applications from a single cloud host instance.
-* **Containerization (Docker Infrastructure):** Package the runtime layers, deterministic environmental constraints, and compiled dependencies into immutable isolated images to abstract away variations between local machines and remote servers.
+* **Expand the training corpus:** Increase the labeled dataset to improve generalization across more varied social-media language.
+* **Add NGINX reverse proxying:** Route public port 80 traffic to the internal container port and prepare for multiple apps on one host.
+* **Add HTTPS:** Put the service behind TLS for production-grade browser access.
+* **Add deployment observability:** Capture structured logs, health-check alerts, and container restart events.
