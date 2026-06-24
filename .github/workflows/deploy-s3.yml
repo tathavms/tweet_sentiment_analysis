@@ -1,0 +1,44 @@
+name: Sync LFS Assets to S3
+
+on:
+  push:
+    branches: [ main ] # Triggers whenever code is pushed to the main branch
+    paths:
+      - 'model_artifacts/model.safetensors' # ONLY runs if this specific file changes
+
+jobs:
+  sync-assets:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code with LFS
+      uses: actions/checkout@v4 
+      with:
+        lfs: true # This forces GitHub Actions to pull the actual large file, not just the text pointer
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-north-1
+
+    - name: Upload Large File to S3
+      run: |
+        aws s3 cp model_artifacts/model.safetensors s3://twitter-sentiment-lfs-assets/model.safetensors
+
+    # Automatically triggering EC2 to fetch from S3 the new model weights
+    - name: Execute Remote SSH Commands on EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}          # EC2 Public Elastic IP address
+        username: ec2-user
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Create the project-specific nested path if it doesn't exist
+          mkdir -p /home/ec2-user/tweet_sentiment_analysis/model_artifacts
+          
+          # Download from S3 into the nested project folder
+          aws s3 cp s3://twitter-sentiment-lfs-assets/model.safetensors /home/ec2-user/tweet_sentiment_analysis/model_artifacts/model.safetensors
+          
+          # Restart the container
+          docker restart tweet_app
