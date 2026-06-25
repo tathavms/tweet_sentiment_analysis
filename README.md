@@ -48,45 +48,36 @@ AWS EC2 production host
     `-- FastAPI + Uvicorn on port 8000 -> Elastic IP public endpoint
 ```
 
+**Application Image Deployment**
+
 ```mermaid
-flowchart LR
-    subgraph Repo["GitHub Repository"]
-        direction TB
-        Source["FastAPI app, Dockerfile,<br/>requirements, templates, CSS"]
-        Weights["model_artifacts/model.safetensors<br/>(tracked with Git LFS)"]
-    end
+flowchart TD
+    A["Push app/runtime change to main<br/>(app, Dockerfile, requirements, workflows)"]
+    B["deploy-image.yml<br/>GitHub Actions"]
+    C["Build Docker image<br/>Python 3.12 slim multi-stage build"]
+    D["Push latest image to GHCR<br/>ghcr.io/tathavms/tweet_sentiment_analysis:latest"]
+    E["SSH into EC2"]
+    F["docker pull latest image"]
+    G["Replace tweet_app container<br/>Expose 8000 and keep model bind mount"]
+    H["FastAPI + Uvicorn live<br/>13.48.162.241:8000"]
 
-    subgraph Actions["GitHub Actions CI/CD"]
-        direction TB
-        ImageWF["deploy-image.yml<br/>Build image and redeploy container"]
-        S3WF["deploy-s3.yml<br/>Sync model weights and restart container"]
-    end
+    A --> B --> C --> D --> E --> F --> G --> H
+```
 
-    subgraph Stores["Artifact Stores"]
-        direction TB
-        GHCR["GitHub Container Registry<br/>ghcr.io/tathavms/tweet_sentiment_analysis:latest"]
-        S3["Amazon S3<br/>twitter-sentiment-lfs-assets/model.safetensors"]
-    end
+**Model Weight Deployment**
 
-    subgraph EC2["AWS EC2 Production Host"]
-        direction TB
-        HostWeight["Host model file<br/>/home/ec2-user/.../model.safetensors"]
-        Container["tweet_app Docker container<br/>FastAPI + Uvicorn :8000"]
-        Public["Elastic IP endpoint<br/>13.48.162.241:8000"]
-    end
+```mermaid
+flowchart TD
+    A["Push model_artifacts/model.safetensors<br/>tracked with Git LFS"]
+    B["deploy-s3.yml<br/>GitHub Actions"]
+    C["Checkout repository with lfs: true<br/>real model file, not pointer"]
+    D["Upload model.safetensors to Amazon S3<br/>twitter-sentiment-lfs-assets"]
+    E["SSH into EC2"]
+    F["aws s3 cp model.safetensors<br/>to host model_artifacts folder"]
+    G["docker restart tweet_app"]
+    H["Container reads updated weight<br/>through /app/model_artifacts bind mount"]
 
-    Source -->|"push, excluding README/images/notebooks<br/>and weight-only changes"| ImageWF
-    ImageWF -->|"docker build + push"| GHCR
-    ImageWF -->|"SSH: docker pull + docker run"| Container
-
-    Weights -->|"push affecting model.safetensors"| S3WF
-    S3WF -->|"checkout lfs: true + aws s3 cp"| S3
-    S3WF -->|"SSH: aws s3 cp + docker restart"| HostWeight
-
-    GHCR -->|"docker pull latest"| Container
-    S3 -->|"aws s3 cp"| HostWeight
-    HostWeight -->|"Docker bind mount"| Container
-    Container -->|"port 8000"| Public
+    A --> B --> C --> D --> E --> F --> G --> H
 ```
 
 ### 2.1 Architecture Highlights
