@@ -42,6 +42,7 @@ htmlcov/
 # IDE / editor
 .vscode/
 .idea/
+.agents/
 
 # OS files
 .DS_Store
@@ -51,9 +52,6 @@ Thumbs.db
 *.pid
 
 # Optional data ignores
-data/
-dataset/
-*.csv
 
 # Local nginx or deployment scratch files
 deploy_notes.txt
